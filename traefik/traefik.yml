@@ -1,0 +1,97 @@
+# ==============================================
+# Facebook/Meta Traefik Configuration
+# Enterprise Reverse Proxy with SSL
+# ==============================================
+
+# Global configuration
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+# Entrypoints
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entrypoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        options: facebook-monitoring@file
+
+  traefik:
+    address: ":8080"
+
+# API and Dashboard
+api:
+  dashboard: true
+  debug: false
+  insecure: true
+
+# Providers
+providers:
+  # Docker provider
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: monitor-net
+
+  # File provider for SSL certificates
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+# Certificate resolvers
+certificatesResolvers:
+  # Let's Encrypt for production
+  letsencrypt:
+    acme:
+      email: platform-reliability@facebook.com
+      storage: /ssl/acme.json
+      httpChallenge:
+        entryPoint: web
+      # Use staging for testing
+      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+
+  # Self-signed certificates
+  selfSigned:
+    acme:
+      email: platform-reliability@facebook.com
+      storage: /ssl/acme-self.json
+      keyType: EC256
+
+# Logging
+log:
+  level: WARN
+  format: json
+
+accessLog:
+  format: json
+
+# Metrics
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addServicesLabels: true
+    buckets:
+      - 0.005
+      - 0.01
+      - 0.025
+      - 0.05
+      - 0.1
+      - 0.25
+      - 0.5
+      - 1.0
+      - 2.5
+      - 5.0
+      - 10.0
+
+# Pilot (optional)
+pilot:
+  dashboard: false 

@@ -1,0 +1,63 @@
+# ==============================================
+# Facebook/Meta Monitoring Stack
+# Development Environment Override
+# ==============================================
+
+version: '3.8'
+
+services:
+  # Use MailHog for development SMTP
+  mailhog:
+    profiles: []  # Always enabled in dev
+
+  # Disable Postfix in development
+  postfix:
+    profiles:
+      - production
+      - disabled
+
+  # Simplified Grafana config for development
+  grafana:
+    environment:
+      - GF_SMTP_HOST=mailhog:1025
+      - GF_SMTP_USER=
+      - GF_SMTP_PASSWORD=
+      - GF_SMTP_FROM_ADDRESS=dev-monitoring@facebook.com
+      - GF_SMTP_SKIP_VERIFY=true
+      - GF_SERVER_DOMAIN=localhost
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+
+  # Simplified Prometheus for development
+  prometheus:
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=7d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--web.external-url=http://localhost:9090'
+      - '--log.level=info'
+
+  # Simplified AlertManager for development
+  alertmanager:
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+      - '--log.level=info'
+
+  # Disable Traefik in development
+  traefik:
+    profiles:
+      - production
+      - disabled
+
+  # Disable Redis in development (optional)
+  redis:
+    profiles:
+      - production
+      - optional 

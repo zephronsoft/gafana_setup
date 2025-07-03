@@ -1,0 +1,79 @@
+# ==============================================
+# Facebook/Meta Monitoring Stack Configuration
+# ==============================================
+
+# Admin Credentials
+ADMIN_USER=admin
+ADMIN_PASSWORD=
+
+# PostgreSQL Database
+POSTGRES_USER=grafana
+POSTGRES_PASSWORD=
+
+# Grafana Security
+GRAFANA_SECRET_KEY=
+
+# SMTP Configuration for Alerting
+# Internal SMTP servers are included (MailHog for dev, Postfix for prod)
+MAIL_DOMAIN=facebook.com
+SMTP_USER=monitoring@facebook.com
+SMTP_PASSWORD=your-smtp-password
+SMTP_FROM=noreply-monitoring@facebook.com
+
+# SSL/TLS Configuration
+ACME_EMAIL=devops@facebook.com
+CF_API_EMAIL=
+CF_API_KEY=
+
+# Slack Integration
+SLACK_API_URL=
+SLACK_CHANNEL=#platform-reliability
+SLACK_USERNAME=FB-Monitoring
+
+# Microsoft Teams (Alternative)
+TEAMS_WEBHOOK_URL=
+
+# PagerDuty Integration
+PAGERDUTY_INTEGRATION_KEY=
+PAGERDUTY_SERVICE_KEY=
+
+# Datadog Integration (Optional)
+DATADOG_API_KEY=
+DATADOG_APP_KEY=
+
+# Monitoring Retention
+PROMETHEUS_RETENTION_TIME=30d
+PROMETHEUS_RETENTION_SIZE=50GB
+LOKI_RETENTION_PERIOD=30d
+
+# Performance Tuning
+PROMETHEUS_MAX_CONCURRENCY=50
+PROMETHEUS_MAX_SAMPLES=50000000
+GRAFANA_MAX_CONCURRENT_QUERIES=10
+
+# Environment Settings
+ENVIRONMENT=production
+COMPANY=facebook
+TEAM=platform-reliability
+DATACENTER=east-1
+
+# External URLs
+GRAFANA_DOMAIN=grafana.facebook.com
+PROMETHEUS_DOMAIN=prometheus.facebook.com
+ALERTMANAGER_DOMAIN=alertmanager.facebook.com
+
+# Security
+ENABLE_RBAC=true
+ENABLE_AUDIT_LOGS=true
+ENABLE_2FA=true
+
+# Backup Configuration
+BACKUP_ENABLED=true
+BACKUP_S3_BUCKET=fb-monitoring-backups
+BACKUP_RETENTION_DAYS=90
+
+# Log Levels
+LOG_LEVEL=warn
+GRAFANA_LOG_LEVEL=warn
+PROMETHEUS_LOG_LEVEL=warn
+ALERTMANAGER_LOG_LEVEL=warn 

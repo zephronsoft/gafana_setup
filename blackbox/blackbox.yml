@@ -1,0 +1,220 @@
+# ==============================================
+# Facebook/Meta Blackbox Exporter Configuration
+# Enterprise Endpoint Monitoring
+# ==============================================
+
+modules:
+  # HTTP 2xx check
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200, 301, 302]
+      method: GET
+      headers:
+        User-Agent: "Facebook-Monitoring/1.0"
+        Accept: "text/html,application/json"
+      no_follow_redirects: false
+      fail_if_ssl: false
+      fail_if_not_ssl: false
+      tls_config:
+        insecure_skip_verify: false
+      preferred_ip_protocol: "ip4"
+      ip_protocol_fallback: true
+
+  # HTTP 2xx with specific Facebook checks
+  http_facebook:
+    prober: http
+    timeout: 15s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200]
+      method: GET
+      headers:
+        User-Agent: "Facebook-Internal-Monitor/1.0"
+        Accept: "text/html,application/json"
+        X-FB-Debug: "1"
+      body_size_limit: 1048576  # 1MB
+      fail_if_body_matches_regexp:
+        - "(?i)error"
+        - "(?i)exception"
+        - "(?i)internal server error"
+      fail_if_body_not_matches_regexp:
+        - "(?i)facebook|meta"
+      tls_config:
+        insecure_skip_verify: false
+        ca_file: "/etc/ssl/certs/ca-certificates.crt"
+
+  # HTTPS with SSL certificate validation
+  http_2xx_ssl:
+    prober: http
+    timeout: 10s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200, 301, 302]
+      method: GET
+      headers:
+        User-Agent: "Facebook-SSL-Monitor/1.0"
+      fail_if_ssl: false
+      fail_if_not_ssl: true
+      tls_config:
+        insecure_skip_verify: false
+      preferred_ip_protocol: "ip4"
+
+  # HTTP POST endpoint check
+  http_post_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      method: POST
+      headers:
+        Content-Type: "application/json"
+        User-Agent: "Facebook-Monitor/1.0"
+      body: '{"health": "check", "from": "monitoring"}'
+      valid_status_codes: [200, 201, 202]
+
+  # GraphQL endpoint check (Facebook specific)
+  http_graphql:
+    prober: http
+    timeout: 15s
+    http:
+      method: POST
+      headers:
+        Content-Type: "application/json"
+        User-Agent: "Facebook-GraphQL-Monitor/1.0"
+        Authorization: "Bearer monitoring-token"
+      body: '{"query": "query { __typename }"}'
+      valid_status_codes: [200]
+      fail_if_body_not_matches_regexp:
+        - '{"data"'
+
+  # API health check
+  http_api_health:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      headers:
+        User-Agent: "Facebook-API-Monitor/1.0"
+        Accept: "application/json"
+      valid_status_codes: [200]
+      fail_if_body_not_matches_regexp:
+        - '(?i)"status":\s*"(ok|healthy|up)"'
+
+  # TCP connection check
+  tcp_connect:
+    prober: tcp
+    timeout: 10s
+    tcp:
+      preferred_ip_protocol: "ip4"
+      ip_protocol_fallback: true
+
+  # PostgreSQL connection check
+  tcp_postgres:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      query_response:
+        - expect: "^\\x00"
+      tls: false
+      preferred_ip_protocol: "ip4"
+
+  # Redis connection check
+  tcp_redis:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      query_response:
+        - send: "INFO\r\n"
+        - expect: "redis_version"
+      preferred_ip_protocol: "ip4"
+
+  # SSH connection check
+  tcp_ssh:
+    prober: tcp
+    timeout: 10s
+    tcp:
+      query_response:
+        - expect: "SSH-2.0-"
+      preferred_ip_protocol: "ip4"
+
+  # MySQL connection check
+  tcp_mysql:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      query_response:
+        - expect: "\\x0a(5\\.[0-9]+\\.[0-9]+)"
+      preferred_ip_protocol: "ip4"
+
+  # SMTP check
+  tcp_smtp:
+    prober: tcp
+    timeout: 10s
+    tcp:
+      query_response:
+        - expect: "^220"
+        - send: "EHLO facebook.com\r\n"
+        - expect: "^250"
+        - send: "QUIT\r\n"
+        - expect: "^221"
+
+  # ICMP ping check
+  icmp:
+    prober: icmp
+    timeout: 10s
+    icmp:
+      preferred_ip_protocol: "ip4"
+      source_ip_address: "0.0.0.0"
+
+  # DNS lookup check
+  dns_facebook:
+    prober: dns
+    timeout: 10s
+    dns:
+      query_name: "facebook.com"
+      query_type: "A"
+      valid_rcodes:
+        - NOERROR
+      validate_answer_rrs:
+        fail_if_matches_regexp:
+          - ".*127\\.0\\.0\\.1"
+        fail_if_not_matches_regexp:
+          - ".*"
+      preferred_ip_protocol: "ip4"
+
+  # DNS MX record check
+  dns_mx:
+    prober: dns
+    timeout: 10s
+    dns:
+      query_name: "facebook.com"
+      query_type: "MX"
+      valid_rcodes:
+        - NOERROR
+
+  # Elasticsearch health check
+  http_elasticsearch:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      headers:
+        User-Agent: "Facebook-ES-Monitor/1.0"
+      fail_if_body_not_matches_regexp:
+        - '"status":\s*"(green|yellow)"'
+
+  # Load balancer health check
+  http_lb_health:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      headers:
+        User-Agent: "Facebook-LB-Monitor/1.0"
+      body_size_limit: 1024
+      fail_if_body_not_matches_regexp:
+        - "(?i)(healthy|ok|ready)" 

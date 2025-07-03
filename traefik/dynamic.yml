@@ -1,0 +1,220 @@
+# ==============================================
+# Facebook/Meta Traefik Dynamic Configuration
+# SSL Certificates and Routing Rules
+# ==============================================
+
+# TLS Configuration
+tls:
+  # TLS Options
+  options:
+    facebook-monitoring:
+      minVersion: "VersionTLS12"
+      maxVersion: "VersionTLS13"
+      sslStrategies:
+        - "tls.SniStrict"
+      cipherSuites:
+        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
+        - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+        - "TLS_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_RSA_WITH_AES_128_GCM_SHA256"
+      curvePreferences:
+        - CurveP521
+        - CurveP384
+      clientAuth:
+        caFiles:
+          - /ssl/certs/ca.crt
+        clientAuthType: RequestClientCert
+
+  # SSL Certificates
+  certificates:
+    # Main monitoring certificate
+    - certFile: /ssl/certs/monitoring.crt
+      keyFile: /ssl/private/monitoring.key
+      stores:
+        - default
+
+    # Certificate bundle
+    - certFile: /ssl/certs/monitoring-bundle.crt
+      keyFile: /ssl/private/monitoring.key
+      stores:
+        - default
+
+  # Certificate stores
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /ssl/certs/monitoring.crt
+        keyFile: /ssl/private/monitoring.key
+
+# HTTP Configuration
+http:
+  # Routers
+  routers:
+    # Grafana
+    grafana:
+      rule: "Host(`grafana.facebook.com`) || Host(`localhost`) && PathPrefix(`/grafana`)"
+      service: grafana
+      entryPoints:
+        - websecure
+      tls:
+        options: facebook-monitoring
+
+    # Prometheus
+    prometheus:
+      rule: "Host(`prometheus.facebook.com`) || Host(`localhost`) && PathPrefix(`/prometheus`)"
+      service: prometheus
+      entryPoints:
+        - websecure
+      tls:
+        options: facebook-monitoring
+      middlewares:
+        - auth
+
+    # AlertManager
+    alertmanager:
+      rule: "Host(`alertmanager.facebook.com`) || Host(`localhost`) && PathPrefix(`/alertmanager`)"
+      service: alertmanager
+      entryPoints:
+        - websecure
+      tls:
+        options: facebook-monitoring
+      middlewares:
+        - auth
+
+    # Loki
+    loki:
+      rule: "Host(`loki.facebook.com`) || Host(`localhost`) && PathPrefix(`/loki`)"
+      service: loki
+      entryPoints:
+        - websecure
+      tls:
+        options: facebook-monitoring
+      middlewares:
+        - auth
+
+    # Jaeger
+    jaeger:
+      rule: "Host(`jaeger.facebook.com`) || Host(`localhost`) && PathPrefix(`/jaeger`)"
+      service: jaeger
+      entryPoints:
+        - websecure
+      tls:
+        options: facebook-monitoring
+
+    # MailHog
+    mailhog:
+      rule: "Host(`mailhog.facebook.com`) || Host(`localhost`) && PathPrefix(`/mailhog`)"
+      service: mailhog
+      entryPoints:
+        - websecure
+      tls:
+        options: facebook-monitoring
+
+    # Traefik Dashboard
+    dashboard:
+      rule: "Host(`monitoring.facebook.com`) || Host(`localhost`) && PathPrefix(`/dashboard`)"
+      service: api@internal
+      entryPoints:
+        - websecure
+      tls:
+        options: facebook-monitoring
+      middlewares:
+        - auth
+
+  # Services
+  services:
+    grafana:
+      loadBalancer:
+        servers:
+          - url: "http://grafana:3000"
+        healthCheck:
+          path: "/api/health"
+          interval: "30s"
+          timeout: "10s"
+
+    prometheus:
+      loadBalancer:
+        servers:
+          - url: "http://prometheus:9090"
+        healthCheck:
+          path: "/-/healthy"
+          interval: "30s"
+          timeout: "10s"
+
+    alertmanager:
+      loadBalancer:
+        servers:
+          - url: "http://alertmanager:9093"
+        healthCheck:
+          path: "/-/healthy"
+          interval: "30s"
+          timeout: "10s"
+
+    loki:
+      loadBalancer:
+        servers:
+          - url: "http://loki:3100"
+        healthCheck:
+          path: "/ready"
+          interval: "30s"
+          timeout: "10s"
+
+    jaeger:
+      loadBalancer:
+        servers:
+          - url: "http://jaeger:16686"
+
+    mailhog:
+      loadBalancer:
+        servers:
+          - url: "http://mailhog:8025"
+
+  # Middlewares
+  middlewares:
+    # Basic authentication
+    auth:
+      basicAuth:
+        users:
+          - "admin:$2y$10$2b2cu/9f8o0a5QsqwJlKF.CjBpE8eB8/pJk2JcR9kF7MFKzHpk8Sm"  # admin:admin
+
+    # Security headers
+    security-headers:
+      headers:
+        frameDeny: true
+        sslRedirect: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+        customFrameOptionsValue: "SAMEORIGIN"
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+
+    # Rate limiting
+    rate-limit:
+      rateLimit:
+        average: 100
+        period: 1m
+        burst: 50
+
+    # Compression
+    compression:
+      compress: true
+
+    # CORS
+    cors:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - OPTIONS
+          - PUT
+          - POST
+          - DELETE
+        accessControlAllowOriginList:
+          - "https://*.facebook.com"
+          - "https://localhost"
+        accessControlMaxAge: 100
+        addVaryHeader: true 

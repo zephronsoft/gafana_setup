@@ -1,0 +1,393 @@
+# ==============================================
+# Facebook/Meta Prometheus Alert Rules
+# Enterprise-Grade Monitoring Rules
+# ==============================================
+
+groups:
+# =====================================
+# Infrastructure Monitoring
+# =====================================
+- name: infrastructure.rules
+  interval: 30s
+  rules:
+  
+  # Node/Host monitoring
+  - alert: HostDown
+    expr: up{job="node-exporter"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: infrastructure
+      team: platform-reliability
+    annotations:
+      summary: "Host {{ $labels.instance }} is down"
+      description: "Host {{ $labels.instance }} has been down for more than 1 minute"
+      runbook_url: "https://wiki.facebook.com/runbooks/host-down"
+      dashboard_id: "host-overview"
+
+  - alert: HighCPUUsage
+    expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+    for: 5m
+    labels:
+      severity: warning
+      service: infrastructure
+      team: platform-reliability
+    annotations:
+      summary: "High CPU usage on {{ $labels.instance }}"
+      description: "CPU usage is above 85% for more than 5 minutes on {{ $labels.instance }}"
+      runbook_url: "https://wiki.facebook.com/runbooks/high-cpu"
+      dashboard_id: "host-overview"
+
+  - alert: CriticalCPUUsage
+    expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 95
+    for: 2m
+    labels:
+      severity: critical
+      service: infrastructure  
+      team: platform-reliability
+    annotations:
+      summary: "Critical CPU usage on {{ $labels.instance }}"
+      description: "CPU usage is above 95% for more than 2 minutes on {{ $labels.instance }}"
+      runbook_url: "https://wiki.facebook.com/runbooks/critical-cpu"
+      dashboard_id: "host-overview"
+
+  - alert: HighMemoryUsage
+    expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 90
+    for: 5m
+    labels:
+      severity: warning
+      service: infrastructure
+      team: platform-reliability
+    annotations:
+      summary: "High memory usage on {{ $labels.instance }}"
+      description: "Memory usage is above 90% on {{ $labels.instance }}"
+      runbook_url: "https://wiki.facebook.com/runbooks/high-memory"
+      dashboard_id: "host-overview"
+
+  - alert: CriticalMemoryUsage
+    expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 95
+    for: 2m
+    labels:
+      severity: critical
+      service: infrastructure
+      team: platform-reliability
+    annotations:
+      summary: "Critical memory usage on {{ $labels.instance }}"
+      description: "Memory usage is above 95% on {{ $labels.instance }}"
+      runbook_url: "https://wiki.facebook.com/runbooks/critical-memory"
+      dashboard_id: "host-overview"
+
+  - alert: DiskSpaceWarning
+    expr: (node_filesystem_size_bytes - node_filesystem_free_bytes) / node_filesystem_size_bytes * 100 > 85
+    for: 5m
+    labels:
+      severity: warning
+      service: infrastructure
+      team: platform-reliability
+    annotations:
+      summary: "Disk space warning on {{ $labels.instance }}"
+      description: "Disk usage is above 85% on {{ $labels.instance }} filesystem {{ $labels.mountpoint }}"
+      runbook_url: "https://wiki.facebook.com/runbooks/disk-space"
+      dashboard_id: "host-overview"
+
+  - alert: DiskSpaceCritical
+    expr: (node_filesystem_size_bytes - node_filesystem_free_bytes) / node_filesystem_size_bytes * 100 > 95
+    for: 2m
+    labels:
+      severity: critical
+      service: infrastructure
+      team: platform-reliability
+    annotations:
+      summary: "Critical disk space on {{ $labels.instance }}"
+      description: "Disk usage is above 95% on {{ $labels.instance }} filesystem {{ $labels.mountpoint }}"
+      runbook_url: "https://wiki.facebook.com/runbooks/critical-disk"
+      dashboard_id: "host-overview"
+
+  - alert: HighLoadAverage
+    expr: node_load15 / on(instance) count(count(node_cpu_seconds_total) by(cpu, instance)) by(instance) > 2
+    for: 10m
+    labels:
+      severity: warning
+      service: infrastructure
+      team: platform-reliability
+    annotations:
+      summary: "High load average on {{ $labels.instance }}"
+      description: "Load average is {{ $value }} (>2x CPU cores) on {{ $labels.instance }}"
+      runbook_url: "https://wiki.facebook.com/runbooks/high-load"
+      dashboard_id: "host-overview"
+
+# =====================================
+# Container/Docker Monitoring  
+# =====================================
+- name: container.rules
+  interval: 30s
+  rules:
+
+  - alert: ContainerDown
+    expr: up{job="cadvisor"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: docker
+      team: platform-reliability
+    annotations:
+      summary: "Container monitoring is down"
+      description: "cAdvisor on {{ $labels.instance }} has been down for more than 1 minute"
+      runbook_url: "https://wiki.facebook.com/runbooks/container-down"
+
+  - alert: ContainerHighCPU
+    expr: rate(container_cpu_usage_seconds_total{container_label_org_label_schema_group="monitoring"}[5m]) * 100 > 80
+    for: 5m
+    labels:
+      severity: warning
+      service: docker
+      team: platform-reliability
+    annotations:
+      summary: "High CPU usage in container {{ $labels.name }}"
+      description: "Container {{ $labels.name }} CPU usage is above 80%"
+      runbook_url: "https://wiki.facebook.com/runbooks/container-cpu"
+
+  - alert: ContainerHighMemory
+    expr: container_memory_usage_bytes{container_label_org_label_schema_group="monitoring"} / container_spec_memory_limit_bytes * 100 > 90
+    for: 5m
+    labels:
+      severity: warning
+      service: docker
+      team: platform-reliability
+    annotations:
+      summary: "High memory usage in container {{ $labels.name }}"
+      description: "Container {{ $labels.name }} memory usage is above 90%"
+      runbook_url: "https://wiki.facebook.com/runbooks/container-memory"
+
+  - alert: ContainerRestarting
+    expr: rate(container_start_time_seconds{container_label_org_label_schema_group="monitoring"}[5m]) > 0
+    for: 5m
+    labels:
+      severity: warning
+      service: docker
+      team: platform-reliability
+    annotations:
+      summary: "Container {{ $labels.name }} is restarting"
+      description: "Container {{ $labels.name }} has restarted {{ $value }} times in the last 5 minutes"
+      runbook_url: "https://wiki.facebook.com/runbooks/container-restart"
+
+# =====================================
+# Database Monitoring
+# =====================================  
+- name: database.rules
+  interval: 30s
+  rules:
+
+  - alert: PostgreSQLDown
+    expr: up{job="postgres"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: postgres
+      team: database-team
+    annotations:
+      summary: "PostgreSQL is down"
+      description: "PostgreSQL database is down on {{ $labels.instance }}"
+      runbook_url: "https://wiki.facebook.com/runbooks/postgres-down"
+      dashboard_id: "postgres-overview"
+
+  - alert: PostgreSQLHighConnections
+    expr: sum(pg_stat_activity_count) by(instance) / sum(pg_settings_max_connections) by(instance) * 100 > 80
+    for: 5m
+    labels:
+      severity: warning
+      service: postgres
+      team: database-team
+    annotations:
+      summary: "PostgreSQL high connections"
+      description: "PostgreSQL connection usage is above 80% on {{ $labels.instance }}"
+      runbook_url: "https://wiki.facebook.com/runbooks/postgres-connections"
+
+  - alert: RedisDown
+    expr: up{job="redis"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: redis
+      team: database-team
+    annotations:
+      summary: "Redis is down"
+      description: "Redis server is down on {{ $labels.instance }}"
+      runbook_url: "https://wiki.facebook.com/runbooks/redis-down"
+      dashboard_id: "redis-overview"
+
+# =====================================
+# Application Monitoring
+# =====================================
+- name: application.rules
+  interval: 30s  
+  rules:
+
+  - alert: PrometheusDown
+    expr: up{job="prometheus"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: prometheus
+      team: platform-reliability
+    annotations:
+      summary: "Prometheus server is down"
+      description: "Prometheus server has been down for more than 1 minute"
+      runbook_url: "https://wiki.facebook.com/runbooks/prometheus-down"
+
+  - alert: PrometheusConfigReloadFailed
+    expr: prometheus_config_last_reload_successful == 0
+    for: 5m
+    labels:
+      severity: warning
+      service: prometheus
+      team: platform-reliability
+    annotations:
+      summary: "Prometheus configuration reload failed"
+      description: "Prometheus configuration reload has failed"
+      runbook_url: "https://wiki.facebook.com/runbooks/prometheus-config"
+
+  - alert: GrafanaDown
+    expr: up{job="grafana"} == 0
+    for: 2m
+    labels:
+      severity: critical
+      service: grafana
+      team: platform-reliability
+    annotations:
+      summary: "Grafana is down"
+      description: "Grafana dashboard server is down"
+      runbook_url: "https://wiki.facebook.com/runbooks/grafana-down"
+
+  - alert: AlertManagerDown
+    expr: up{job="alertmanager"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: alertmanager
+      team: platform-reliability
+    annotations:
+      summary: "AlertManager is down"
+      description: "AlertManager has been down for more than 1 minute"
+      runbook_url: "https://wiki.facebook.com/runbooks/alertmanager-down"
+
+# =====================================
+# Network & Endpoint Monitoring
+# =====================================
+- name: network.rules
+  interval: 30s
+  rules:
+
+  - alert: EndpointDown
+    expr: probe_success{job="blackbox-http"} == 0
+    for: 2m
+    labels:
+      severity: critical
+      service: endpoint
+      team: platform-reliability
+    annotations:
+      summary: "Endpoint {{ $labels.instance }} is down"
+      description: "HTTP endpoint {{ $labels.instance }} has been down for more than 2 minutes"
+      runbook_url: "https://wiki.facebook.com/runbooks/endpoint-down"
+
+  - alert: SlowEndpointResponse
+    expr: probe_duration_seconds{job="blackbox-http"} > 5
+    for: 5m
+    labels:
+      severity: warning
+      service: endpoint
+      team: platform-reliability
+    annotations:
+      summary: "Slow response from {{ $labels.instance }}"
+      description: "HTTP endpoint {{ $labels.instance }} is responding slowly ({{ $value }}s)"
+      runbook_url: "https://wiki.facebook.com/runbooks/slow-endpoint"
+
+  - alert: SSLCertificateExpiring
+    expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 30
+    for: 1h
+    labels:
+      severity: warning
+      service: endpoint
+      team: platform-reliability
+    annotations:
+      summary: "SSL certificate expiring soon for {{ $labels.instance }}"
+      description: "SSL certificate for {{ $labels.instance }} expires in {{ $value }} days"
+      runbook_url: "https://wiki.facebook.com/runbooks/ssl-expiry"
+
+# =====================================
+# Business/SLO Monitoring
+# =====================================
+- name: slo.rules
+  interval: 60s
+  rules:
+
+  - alert: ErrorRateTooHigh
+    expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 1
+    for: 10m
+    labels:
+      severity: warning
+      service: application
+      team: platform-reliability
+      slo: error-rate
+    annotations:
+      summary: "High error rate detected"
+      description: "Error rate is {{ $value }}% for service {{ $labels.service }}"
+      runbook_url: "https://wiki.facebook.com/runbooks/high-error-rate"
+
+  - alert: LatencyTooHigh
+    expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+    for: 10m
+    labels:
+      severity: warning
+      service: application
+      team: platform-reliability
+      slo: latency
+    annotations:
+      summary: "High latency detected"
+      description: "95th percentile latency is {{ $value }}s for service {{ $labels.service }}"
+      runbook_url: "https://wiki.facebook.com/runbooks/high-latency"
+
+  - alert: ThroughputTooLow
+    expr: rate(http_requests_total[5m]) < 100
+    for: 15m
+    labels:
+      severity: warning
+      service: application
+      team: platform-reliability
+      slo: throughput
+    annotations:
+      summary: "Low throughput detected"
+      description: "Request rate is {{ $value }} req/s for service {{ $labels.service }}"
+      runbook_url: "https://wiki.facebook.com/runbooks/low-throughput"
+
+# =====================================
+# Security Monitoring
+# =====================================
+- name: security.rules
+  interval: 60s
+  rules:
+
+  - alert: UnauthorizedAccess
+    expr: rate(http_requests_total{status="401"}[5m]) > 10
+    for: 5m
+    labels:
+      severity: warning
+      service: security
+      team: security-team
+    annotations:
+      summary: "High rate of unauthorized access attempts"
+      description: "Unauthorized access rate is {{ $value }} req/s"
+      runbook_url: "https://wiki.facebook.com/runbooks/unauthorized-access"
+
+  - alert: SuspiciousActivity
+    expr: rate(http_requests_total{status="403"}[5m]) > 5
+    for: 5m
+    labels:
+      severity: warning
+      service: security  
+      team: security-team
+    annotations:
+      summary: "Suspicious activity detected"
+      description: "Forbidden access rate is {{ $value }} req/s"
+      runbook_url: "https://wiki.facebook.com/runbooks/suspicious-activity"
+
