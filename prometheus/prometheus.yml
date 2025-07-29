@@ -182,6 +182,193 @@ scrape_configs:
     scrape_interval: 30s
     metrics_path: /metrics
 
+  # ==============================================
+  # MANUAL EXPORTER CONFIGURATIONS
+  # ==============================================
+
+  # Example 1: Single exporter with custom labels
+  - job_name: 'custom-exporter-single'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ['192.168.1.100:9100']  # Replace with your exporter IP:port
+        labels:
+          instance: 'custom-server-01'
+          environment: 'production'
+          datacenter: 'east-1'
+          service: 'custom-app'
+
+  # Example 2: Multiple exporters in same job
+  - job_name: 'custom-exporters-multiple'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: 
+        - '192.168.1.101:9100'  # First exporter
+        - '192.168.1.102:9100'  # Second exporter
+        - '192.168.1.103:9100'  # Third exporter
+        labels:
+          environment: 'production'
+          datacenter: 'east-1'
+
+  # Example 3: Different exporters with different ports
+  - job_name: 'mixed-exporters'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: 
+        - '192.168.1.100:9100'  # Node exporter
+        - '192.168.1.100:8080'  # cAdvisor
+        - '192.168.1.100:9187'  # PostgreSQL exporter
+        - '192.168.1.100:9121'  # Redis exporter
+        labels:
+          instance: 'server-01'
+          environment: 'production'
+
+  # Example 4: External exporters with authentication
+  - job_name: 'external-exporters-auth'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    scheme: https  # Use HTTPS for external exporters
+    tls_config:
+      insecure_skip_verify: true  # Only for testing, remove in production
+    static_configs:
+      - targets: 
+        - 'external-server.com:9100'
+        labels:
+          instance: 'external-server'
+          environment: 'external'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+):.*'
+        replacement: '${1}'
+
+  # Example 5: File-based service discovery
+  - job_name: 'file-sd-exporters'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    file_sd_configs:
+      - files:
+        - 'exporters.yml'  # Create this file with exporter targets
+        refresh_interval: 5m
+
+  # Example 6: DNS-based service discovery
+  - job_name: 'dns-sd-exporters'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    dns_sd_configs:
+      - names: ['exporters.local']  # DNS name that resolves to exporter IPs
+        port: 9100
+        refresh_interval: 30s
+
+  # Example 7: Manual exporters with custom metrics path
+  - job_name: 'custom-metrics-path'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /custom/metrics  # Custom metrics endpoint
+    static_configs:
+      - targets: 
+        - '192.168.1.100:8080'
+        labels:
+          instance: 'custom-app-01'
+          service: 'custom-application'
+
+  # Example 8: Exporters with query parameters
+  - job_name: 'exporters-with-params'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    params:
+      debug: ['true']
+      format: ['prometheus']
+    static_configs:
+      - targets: 
+        - '192.168.1.100:8080'
+        labels:
+          instance: 'debug-enabled-exporter'
+
+  # Example 9: Exporters with custom headers
+  - job_name: 'exporters-with-headers'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: 
+        - '192.168.1.100:9100'
+        labels:
+          instance: 'header-enabled-exporter'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - target_label: __address__
+        replacement: '192.168.1.100:9100'
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: '.*'
+        target_label: custom_header
+        replacement: 'custom_value'
+
+  # Example 10: Exporters with different scrape intervals
+  - job_name: 'high-frequency-exporters'
+    scrape_interval: 5s  # Very frequent scraping
+    scrape_timeout: 3s
+    static_configs:
+      - targets: 
+        - '192.168.1.100:9100'
+        labels:
+          instance: 'high-frequency-exporter'
+          scrape_interval: '5s'
+
+  - job_name: 'low-frequency-exporters'
+    scrape_interval: 60s  # Less frequent scraping
+    scrape_timeout: 15s
+    static_configs:
+      - targets: 
+        - '192.168.1.101:9100'
+        labels:
+          instance: 'low-frequency-exporter'
+          scrape_interval: '60s'
+
+  # Example 11: Exporters with custom relabeling
+  - job_name: 'custom-relabel-exporters'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: 
+        - '192.168.1.100:9100'
+        - '192.168.1.101:9100'
+        - '192.168.1.102:9100'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+):.*'
+        replacement: '${1}'
+      - source_labels: [__address__]
+        target_label: datacenter
+        regex: '192\.168\.1\.(100|101)'
+        replacement: 'east-1'
+      - source_labels: [__address__]
+        target_label: datacenter
+        regex: '192\.168\.1\.102'
+        replacement: 'west-1'
+
+  # Example 12: Exporters with metric filtering
+  - job_name: 'filtered-exporters'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    static_configs:
+      - targets: 
+        - '192.168.1.100:9100'
+    metric_relabel_configs:
+      # Only keep metrics that start with 'node_'
+      - source_labels: [__name__]
+        regex: 'node_.*'
+        action: keep
+      # Drop specific metrics
+      - source_labels: [__name__]
+        regex: 'node_cpu_seconds_total'
+        action: drop
+
   # Custom application metrics (Facebook services)
   - job_name: 'facebook-services'
     scrape_interval: 10s

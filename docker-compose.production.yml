@@ -56,7 +56,7 @@ services:
       - '--web.enable-lifecycle'
       - '--web.enable-admin-api'
       - '--storage.tsdb.wal-compression'
-      - '--web.external-url=http://prometheus.localhost'
+      - '--web.external-url=http://prometheus.${GRAFANA_DOMAIN}'
       - '--web.route-prefix=/'
       - '--log.level=warn'
       - '--query.max-concurrency=50'
@@ -95,7 +95,7 @@ services:
     command:
       - '--config.file=/etc/alertmanager/config.yml'
       - '--storage.path=/alertmanager'
-      - '--web.external-url=http://alertmanager.localhost'
+      - '--web.external-url=http://alertmanager.${GRAFANA_DOMAIN}'
       - '--web.route-prefix=/'
       - '--log.level=warn'
       - '--cluster.listen-address=0.0.0.0:9094'
@@ -176,7 +176,7 @@ services:
       environment: "production"
       team: "platform-reliability"
 
-  # Grafana with PostgreSQL backend and enhanced SMTP
+  # Grafana with PostgreSQL backend and Internal SMTP
   grafana:
     image: grafana/grafana:10.1.0
     container_name: grafana
@@ -198,17 +198,18 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_USERS_DEFAULT_THEME=dark
       - GF_AUTH_ANONYMOUS_ENABLED=false
-      # SMTP Configuration - Development (MailHog)
+      # SMTP Configuration - Production (Internal Postfix)
       - GF_SMTP_ENABLED=true
-      - GF_SMTP_HOST=mailhog:1025
-      - GF_SMTP_USER=
-      - GF_SMTP_PASSWORD=
-      - GF_SMTP_FROM_ADDRESS=${SMTP_FROM:-noreply-monitoring@localhost}
-      - GF_SMTP_SKIP_VERIFY=true
+      - GF_SMTP_HOST=postfix:587
+      - GF_SMTP_USER=${SMTP_USER}
+      - GF_SMTP_PASSWORD=${SMTP_PASSWORD}
+      - GF_SMTP_FROM_ADDRESS=${SMTP_FROM}
       - GF_SMTP_FROM_NAME=Monitoring System
+      - GF_SMTP_SKIP_VERIFY=true
+      - GF_SMTP_STARTTLS_POLICY=MandatoryStartTLS
       # Server Configuration (no SSL)
-      - GF_SERVER_DOMAIN=grafana.localhost
-      - GF_SERVER_ROOT_URL=http://grafana.localhost
+      - GF_SERVER_DOMAIN=${GRAFANA_DOMAIN}
+      - GF_SERVER_ROOT_URL=http://${GRAFANA_DOMAIN}
       - GF_SERVER_SERVE_FROM_SUB_PATH=false
       - GF_ANALYTICS_REPORTING_ENABLED=false
       - GF_ANALYTICS_CHECK_FOR_UPDATES=false
@@ -346,27 +347,7 @@ services:
       environment: "production"
       team: "platform-reliability"
 
-  # MailHog for development/testing SMTP
-  mailhog:
-    image: mailhog/mailhog:v1.0.1
-    container_name: mailhog
-    restart: unless-stopped
-    ports:
-      - "1025:1025"  # SMTP port
-      - "8025:8025"  # Web interface
-    networks:
-      - monitor-net
-    environment:
-      - MH_STORAGE=maildir
-      - MH_MAILDIR_PATH=/maildir
-    volumes:
-      - ./mailhog:/maildir
-    labels:
-      org.label-schema.group: "monitoring"
-      environment: "development"
-      team: "platform-reliability"
-
-  # Postfix for production SMTP
+  # Postfix for internal SMTP
   postfix:
     image: catatnight/postfix:latest
     container_name: postfix
@@ -376,16 +357,12 @@ services:
     networks:
       - monitor-net
     environment:
-      - maildomain=${MAIL_DOMAIN:-localhost}
-      - smtp_user=${SMTP_USER:-monitoring@localhost}:${SMTP_PASSWORD}
+      - maildomain=${MAIL_DOMAIN}
+      - smtp_user=${SMTP_USER}:${SMTP_PASSWORD}
     volumes:
       - ./postfix/main.cf:/etc/postfix/main.cf
       - ./postfix/master.cf:/etc/postfix/master.cf
-    profiles:
-      - production
     labels:
       org.label-schema.group: "monitoring"
       environment: "production"
-      team: "platform-reliability"
-
-
+      team: "platform-reliability" 

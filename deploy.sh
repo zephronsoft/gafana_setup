@@ -2,7 +2,7 @@
 
 # ==============================================
 # Facebook/Meta Monitoring Stack Deployment
-# Enterprise Deployment Script
+# No SSL - Internal SMTP Setup
 # ==============================================
 
 set -e
@@ -14,350 +14,331 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Configuration
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-ENV_FILE="$SCRIPT_DIR/.env"
-COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
-BACKUP_DIR="$SCRIPT_DIR/backups"
-
-# Functions
-print_header() {
-    echo -e "${BLUE}"
-    echo "=================================================="
-    echo "  Facebook/Meta Enterprise Monitoring Stack"
-    echo "=================================================="
-    echo -e "${NC}"
+# Function to print colored output
+print_status() {
+    echo -e "${BLUE}[INFO]${NC} $1"
 }
 
 print_success() {
-    echo -e "${GREEN}✓ $1${NC}"
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
 print_warning() {
-    echo -e "${YELLOW}⚠ $1${NC}"
+    echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
 print_error() {
-    echo -e "${RED}✗ $1${NC}"
+    echo -e "${RED}[ERROR]${NC} $1"
 }
 
-print_info() {
-    echo -e "${BLUE}ℹ $1${NC}"
-}
+# Check if .env file exists
+if [ ! -f .env ]; then
+    print_error ".env file not found. Please copy environment.example to .env and configure it."
+    exit 1
+fi
 
-check_prerequisites() {
-    print_info "Checking prerequisites..."
-    
-    # Check Docker
-    if ! command -v docker &> /dev/null; then
-        print_error "Docker is not installed. Please install Docker Engine >= 20.10"
+# Load environment variables
+source .env
+
+# Function to check if Docker is running
+check_docker() {
+    if ! docker info > /dev/null 2>&1; then
+        print_error "Docker is not running. Please start Docker and try again."
         exit 1
     fi
-    
-    DOCKER_VERSION=$(docker version --format '{{.Server.Version}}')
-    print_success "Docker version: $DOCKER_VERSION"
-    
-    # Check Docker Compose
-    if ! command -v docker-compose &> /dev/null; then
-        print_error "Docker Compose is not installed. Please install Docker Compose >= 2.0"
-        exit 1
-    fi
-    
-    COMPOSE_VERSION=$(docker-compose version --short)
-    print_success "Docker Compose version: $COMPOSE_VERSION"
-    
-    # Check system resources
-    TOTAL_MEM=$(free -g | awk '/^Mem:/{print $2}')
-    if [ "$TOTAL_MEM" -lt 8 ]; then
-        print_warning "System has ${TOTAL_MEM}GB RAM. 8GB+ recommended for production"
-    else
-        print_success "System memory: ${TOTAL_MEM}GB"
-    fi
-    
-    # Check disk space
-    AVAILABLE_SPACE=$(df -BG . | tail -1 | awk '{print $4}' | sed 's/G//')
-    if [ "$AVAILABLE_SPACE" -lt 100 ]; then
-        print_warning "Available disk space: ${AVAILABLE_SPACE}GB. 100GB+ recommended"
-    else
-        print_success "Available disk space: ${AVAILABLE_SPACE}GB"
-    fi
+    print_success "Docker is running"
 }
 
-setup_environment() {
-    print_info "Setting up environment..."
+# Function to check required environment variables
+check_env_vars() {
+    local missing_vars=()
     
-    if [ ! -f "$ENV_FILE" ]; then
-        if [ -f "$SCRIPT_DIR/environment.example" ]; then
-            cp "$SCRIPT_DIR/environment.example" "$ENV_FILE"
-            print_success "Created .env file from template"
-            print_warning "Please edit .env file with your configuration before proceeding"
-            echo -e "${YELLOW}Required variables to configure:${NC}"
-            echo "  - ADMIN_PASSWORD"
-            echo "  - POSTGRES_PASSWORD" 
-            echo "  - GRAFANA_SECRET_KEY"
-            echo "  - SLACK_API_URL"
-            echo "  - SMTP_PASSWORD"
-            echo "  - PAGERDUTY_INTEGRATION_KEY"
-            read -p "Press Enter after configuring .env file..."
-        else
-            print_error "environment.example file not found. Cannot create .env file."
-            exit 1
-        fi
-    else
-        print_success "Environment file exists"
+    # Required variables for both modes
+    if [ -z "$ADMIN_PASSWORD" ]; then
+        missing_vars+=("ADMIN_PASSWORD")
     fi
     
-    # Validate required environment variables
-    source "$ENV_FILE"
+    if [ -z "$POSTGRES_PASSWORD" ]; then
+        missing_vars+=("POSTGRES_PASSWORD")
+    fi
     
-    REQUIRED_VARS=("ADMIN_USER" "ADMIN_PASSWORD" "POSTGRES_PASSWORD" "GRAFANA_SECRET_KEY")
-    for var in "${REQUIRED_VARS[@]}"; do
-        if [ -z "${!var}" ]; then
-            print_error "Required environment variable $var is not set"
-            exit 1
-        fi
-    done
+    if [ -z "$GRAFANA_SECRET_KEY" ]; then
+        missing_vars+=("GRAFANA_SECRET_KEY")
+    fi
+    
+    # Check SMTP variables for both modes
+    if [ -z "$SMTP_USER" ]; then
+        missing_vars+=("SMTP_USER")
+    fi
+    
+    if [ -z "$SMTP_PASSWORD" ]; then
+        missing_vars+=("SMTP_PASSWORD")
+    fi
+    
+    if [ -z "$SMTP_FROM" ]; then
+        missing_vars+=("SMTP_FROM")
+    fi
+    
+    if [ ${#missing_vars[@]} -ne 0 ]; then
+        print_error "Missing required environment variables:"
+        for var in "${missing_vars[@]}"; do
+            echo "  - $var"
+        done
+        exit 1
+    fi
     
     print_success "Environment variables validated"
 }
 
+# Function to create required directories
 create_directories() {
-    print_info "Creating required directories..."
+    print_status "Creating required directories..."
     
-    DIRS=(
-        "prometheus/data"
-        "grafana/data"
-        "alertmanager/data"
-        "loki/data"
-        "postgres/data"
-        "ssl/certs"
-        "ssl/private"
-        "ssl/config"
-        "ssl/backups"
-        "backups"
-        "logs"
-        "traefik"
-    )
+    mkdir -p mailhog
+    mkdir -p grafana/dashboards
+    mkdir -p grafana/provisioning/dashboards
+    mkdir -p grafana/provisioning/datasources
     
-    for dir in "${DIRS[@]}"; do
-        mkdir -p "$SCRIPT_DIR/$dir"
-        print_success "Created directory: $dir"
-    done
-    
-    # Set proper permissions
-    sudo chown -R 65534:65534 "$SCRIPT_DIR/prometheus/data" 2>/dev/null || true
-    sudo chown -R 472:472 "$SCRIPT_DIR/grafana/data" 2>/dev/null || true
-    sudo chown -R 65534:65534 "$SCRIPT_DIR/alertmanager/data" 2>/dev/null || true
-    sudo chown -R 10001:10001 "$SCRIPT_DIR/loki/data" 2>/dev/null || true
-    
-    # Set SSL directory permissions
-    chmod 700 "$SCRIPT_DIR/ssl/private"
-    chmod 755 "$SCRIPT_DIR/ssl/certs"
-    chmod 755 "$SCRIPT_DIR/ssl/config"
-    chmod 755 "$SCRIPT_DIR/ssl/backups"
-    
-    # Create ACME JSON file for Let's Encrypt
-    touch "$SCRIPT_DIR/ssl/acme.json"
-    chmod 600 "$SCRIPT_DIR/ssl/acme.json"
-    
-    print_success "Directory permissions set"
+    print_success "Directories created"
 }
 
-generate_ssl_certificates() {
-    print_info "Managing SSL certificates..."
-    
-    # Check if SSL manager script exists
-    if [ ! -f "$SCRIPT_DIR/ssl-manager.sh" ]; then
-        print_error "SSL manager script not found. Cannot generate certificates."
-        exit 1
+# Function to generate Grafana secret key if not set
+generate_secret_key() {
+    if [ -z "$GRAFANA_SECRET_KEY" ]; then
+        print_warning "GRAFANA_SECRET_KEY not set, generating one..."
+        SECRET_KEY=$(openssl rand -hex 32)
+        echo "GRAFANA_SECRET_KEY=$SECRET_KEY" >> .env
+        print_success "Generated GRAFANA_SECRET_KEY"
     fi
+}
+
+# Function to deploy development stack
+deploy_development() {
+    print_status "Deploying development stack with MailHog SMTP..."
     
-    # Make SSL manager executable
-    chmod +x "$SCRIPT_DIR/ssl-manager.sh"
+    docker-compose up -d
     
-    # Check if certificates already exist and are valid
-    if "$SCRIPT_DIR/ssl-manager.sh" check 7; then
-        print_success "Valid SSL certificates found"
+    print_success "Development stack deployed successfully!"
+    print_status "Services available at:"
+    echo "  - Grafana: http://localhost:3000"
+    echo "  - Prometheus: http://localhost:9090"
+    echo "  - AlertManager: http://localhost:9093"
+    echo "  - Loki: http://localhost:3100"
+    echo "  - Jaeger: http://localhost:16686"
+    echo "  - MailHog (SMTP): http://localhost:8025"
+    echo "  - cAdvisor: http://localhost:8080"
+    echo "  - Node Exporter: http://localhost:9100"
+    echo "  - Pushgateway: http://localhost:9091"
+    echo "  - Blackbox: http://localhost:9115"
+    echo "  - Redis: localhost:6379"
+    
+    print_status "Default credentials:"
+    echo "  - Grafana Admin: $ADMIN_USER / $ADMIN_PASSWORD"
+    echo "  - MailHog: No authentication required"
+    echo "  - SMTP (MailHog): localhost:1025"
+}
+
+# Function to deploy production stack
+deploy_production() {
+    print_status "Deploying production stack with internal Postfix SMTP..."
+    
+    docker-compose -f docker-compose.production.yml up -d
+    
+    print_success "Production stack deployed successfully!"
+    print_status "Services available at:"
+    echo "  - Grafana: http://$GRAFANA_DOMAIN:3000"
+    echo "  - Prometheus: http://prometheus.$GRAFANA_DOMAIN:9090"
+    echo "  - AlertManager: http://alertmanager.$GRAFANA_DOMAIN:9093"
+    echo "  - Loki: http://loki.$GRAFANA_DOMAIN:3100"
+    echo "  - Jaeger: http://jaeger.$GRAFANA_DOMAIN:16686"
+    echo "  - Postfix SMTP: localhost:587"
+    echo "  - cAdvisor: http://localhost:8080"
+    echo "  - Node Exporter: http://localhost:9100"
+    echo "  - Pushgateway: http://localhost:9091"
+    echo "  - Blackbox: http://localhost:9115"
+    echo "  - Redis: localhost:6379"
+    
+    print_status "Default credentials:"
+    echo "  - Grafana Admin: $ADMIN_USER / $ADMIN_PASSWORD"
+    echo "  - SMTP (Postfix): $SMTP_USER / $SMTP_PASSWORD"
+    echo "  - SMTP Server: postfix:587"
+}
+
+# Function to stop stack
+stop_stack() {
+    print_status "Stopping monitoring stack..."
+    
+    if [ "$1" = "production" ]; then
+        docker-compose -f docker-compose.production.yml down
     else
-        print_info "Generating new SSL certificates..."
-        "$SCRIPT_DIR/ssl-manager.sh" generate
-        print_success "SSL certificates generated successfully"
+        docker-compose down
     fi
     
-    # Verify certificates were created
-    if [ ! -f "$SCRIPT_DIR/ssl/certs/monitoring.crt" ] || [ ! -f "$SCRIPT_DIR/ssl/private/monitoring.key" ]; then
-        print_error "SSL certificate generation failed"
+    print_success "Stack stopped"
+}
+
+# Function to show logs
+show_logs() {
+    print_status "Showing logs for $1 stack..."
+    
+    if [ "$1" = "production" ]; then
+        docker-compose -f docker-compose.production.yml logs -f
+    else
+        docker-compose logs -f
+    fi
+}
+
+# Function to show status
+show_status() {
+    print_status "Checking service status..."
+    
+    if [ "$1" = "production" ]; then
+        docker-compose -f docker-compose.production.yml ps
+    else
+        docker-compose ps
+    fi
+}
+
+# Function to backup data
+backup_data() {
+    print_status "Creating backup..."
+    
+    BACKUP_DIR="backup_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$BACKUP_DIR"
+    
+    # Backup volumes
+    docker run --rm -v grafana_setup_grafana_data:/data -v "$(pwd)/$BACKUP_DIR:/backup" alpine tar czf /backup/grafana_data.tar.gz -C /data .
+    docker run --rm -v grafana_setup_prometheus_data:/data -v "$(pwd)/$BACKUP_DIR:/backup" alpine tar czf /backup/prometheus_data.tar.gz -C /data .
+    docker run --rm -v grafana_setup_alertmanager_data:/data -v "$(pwd)/$BACKUP_DIR:/backup" alpine tar czf /backup/alertmanager_data.tar.gz -C /data .
+    docker run --rm -v grafana_setup_loki_data:/data -v "$(pwd)/$BACKUP_DIR:/backup" alpine tar czf /backup/loki_data.tar.gz -C /data .
+    docker run --rm -v grafana_setup_postgres_data:/data -v "$(pwd)/$BACKUP_DIR:/backup" alpine tar czf /backup/postgres_data.tar.gz -C /data .
+    
+    print_success "Backup created in $BACKUP_DIR/"
+}
+
+# Function to restore data
+restore_data() {
+    if [ -z "$1" ]; then
+        print_error "Please specify backup directory"
         exit 1
     fi
     
-    print_success "SSL certificates are ready"
+    print_status "Restoring from backup: $1"
+    
+    if [ ! -d "$1" ]; then
+        print_error "Backup directory $1 not found"
+        exit 1
+    fi
+    
+    # Stop stack first
+    stop_stack "$2"
+    
+    # Restore volumes
+    docker run --rm -v grafana_setup_grafana_data:/data -v "$(pwd)/$1:/backup" alpine sh -c "rm -rf /data/* && tar xzf /backup/grafana_data.tar.gz -C /data"
+    docker run --rm -v grafana_setup_prometheus_data:/data -v "$(pwd)/$1:/backup" alpine sh -c "rm -rf /data/* && tar xzf /backup/prometheus_data.tar.gz -C /data"
+    docker run --rm -v grafana_setup_alertmanager_data:/data -v "$(pwd)/$1:/backup" alpine sh -c "rm -rf /data/* && tar xzf /backup/alertmanager_data.tar.gz -C /data"
+    docker run --rm -v grafana_setup_loki_data:/data -v "$(pwd)/$1:/backup" alpine sh -c "rm -rf /data/* && tar xzf /backup/loki_data.tar.gz -C /data"
+    docker run --rm -v grafana_setup_postgres_data:/data -v "$(pwd)/$1:/backup" alpine sh -c "rm -rf /data/* && tar xzf /backup/postgres_data.tar.gz -C /data"
+    
+    print_success "Data restored from $1"
 }
 
-backup_existing_data() {
-    if [ "$1" = "upgrade" ]; then
-        print_info "Creating backup of existing data..."
-        
-        BACKUP_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-        BACKUP_PATH="$BACKUP_DIR/backup_$BACKUP_TIMESTAMP"
-        
-        mkdir -p "$BACKUP_PATH"
-        
-        # Backup volumes if they exist
-        if docker volume ls | grep -q prometheus_data; then
-            docker run --rm -v prometheus_data:/data -v "$BACKUP_PATH":/backup alpine tar czf /backup/prometheus_data.tar.gz -C /data .
-            print_success "Backed up Prometheus data"
+# Function to test SMTP
+test_smtp() {
+    print_status "Testing SMTP configuration..."
+    
+    if [ "$1" = "production" ]; then
+        print_status "Testing production Postfix SMTP..."
+        # Test Postfix SMTP
+        if command -v telnet > /dev/null 2>&1; then
+            echo "QUIT" | telnet localhost 587
+            print_success "Postfix SMTP port 587 is accessible"
+        else
+            print_warning "telnet not available, cannot test SMTP connectivity"
         fi
-        
-        if docker volume ls | grep -q grafana_data; then
-            docker run --rm -v grafana_data:/data -v "$BACKUP_PATH":/backup alpine tar czf /backup/grafana_data.tar.gz -C /data .
-            print_success "Backed up Grafana data"
+    else
+        print_status "Testing development MailHog SMTP..."
+        # Test MailHog SMTP
+        if command -v curl > /dev/null 2>&1; then
+            if curl -s http://localhost:8025 > /dev/null; then
+                print_success "MailHog web interface is accessible at http://localhost:8025"
+            else
+                print_warning "MailHog web interface not accessible"
+            fi
         fi
-        
-        print_success "Backup completed: $BACKUP_PATH"
     fi
 }
 
-deploy_stack() {
-    print_info "Deploying monitoring stack..."
-    
-    # Pull latest images
-    print_info "Pulling Docker images..."
-    docker-compose -f "$COMPOSE_FILE" pull
-    print_success "Images pulled successfully"
-    
-    # Start services
-    print_info "Starting services..."
-    docker-compose -f "$COMPOSE_FILE" up -d
-    
-    # Wait for services to be ready
-    print_info "Waiting for services to be ready..."
-    sleep 30
-    
-    # Check service health
-    check_service_health
+# Function to show help
+show_help() {
+    echo "Usage: $0 [COMMAND] [OPTIONS]"
+    echo ""
+    echo "Commands:"
+    echo "  dev                    Deploy development stack with MailHog SMTP"
+    echo "  prod                   Deploy production stack with internal Postfix SMTP"
+    echo "  stop [dev|prod]        Stop the stack"
+    echo "  logs [dev|prod]        Show logs"
+    echo "  status [dev|prod]      Show service status"
+    echo "  backup                 Create backup of all data"
+    echo "  restore <backup_dir>   Restore from backup"
+    echo "  test-smtp [dev|prod]   Test SMTP configuration"
+    echo "  help                   Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0 dev                 Deploy development stack"
+    echo "  $0 prod                Deploy production stack"
+    echo "  $0 stop dev            Stop development stack"
+    echo "  $0 logs prod           Show production logs"
+    echo "  $0 backup              Create backup"
+    echo "  $0 restore backup_20231201_120000"
+    echo "  $0 test-smtp dev       Test MailHog SMTP"
+    echo "  $0 test-smtp prod      Test Postfix SMTP"
+    echo ""
+    echo "SMTP Configuration:"
+    echo "  Development: MailHog (localhost:1025, web UI: localhost:8025)"
+    echo "  Production:  Postfix (localhost:587, internal SMTP server)"
 }
 
-check_service_health() {
-    print_info "Checking service health..."
-    
-    SERVICES=(
-        "grafana:3000"
-        "prometheus:9090"
-        "alertmanager:9093"
-        "loki:3100"
-    )
-    
-    for service in "${SERVICES[@]}"; do
-        SERVICE_NAME=$(echo "$service" | cut -d: -f1)
-        SERVICE_PORT=$(echo "$service" | cut -d: -f2)
-        
-        if curl -s -o /dev/null -w "%{http_code}" "http://localhost:$SERVICE_PORT" | grep -q "200\|302"; then
-            print_success "$SERVICE_NAME is healthy"
-        else
-            print_warning "$SERVICE_NAME may not be ready yet"
-        fi
-    done
-}
-
-show_access_info() {
-    print_info "Deployment completed successfully!"
-    echo ""
-    echo -e "${GREEN}Access Information:${NC}"
-    echo "  Grafana:       https://localhost:3000"
-    echo "  Prometheus:    https://localhost:9090"
-    echo "  AlertManager:  https://localhost:9093"
-    echo "  Loki:          https://localhost:3100"
-    echo "  Jaeger:        https://localhost:16686"
-    echo "  MailHog:       http://localhost:8025"
-    echo ""
-    echo -e "${GREEN}Default Credentials:${NC}"
-    echo "  Username: ${ADMIN_USER:-admin}"
-    echo "  Password: Check your .env file"
-    echo ""
-    echo -e "${GREEN}SSL Certificate Management:${NC}"
-    echo "  SSL Manager:   ./ssl-manager.sh"
-    echo "  Auto Renewal:  ./setup-ssl-renewal.sh"
-    echo "  Certificate Status: ./ssl-manager.sh info"
-    echo ""
-    echo -e "${YELLOW}Next Steps:${NC}"
-    echo "  1. Login to Grafana and explore dashboards"
-    echo "  2. Configure alerting channels in AlertManager"
-    echo "  3. Review and customize alert rules"
-    echo "  4. Set up automatic SSL renewal: ./setup-ssl-renewal.sh setup"
-    echo "  5. Import CA certificate to browser for trusted access"
-    echo ""
-    echo -e "${YELLOW}SSL Certificate Notes:${NC}"
-    echo "  - Self-signed certificates generated automatically"
-    echo "  - CA certificate: ssl/certs/ca.crt"
-    echo "  - Import CA certificate to browser to avoid security warnings"
-    echo "  - For production, replace with proper SSL certificates"
-    echo ""
-}
-
-show_usage() {
-    echo "Usage: $0 [OPTION]"
-    echo ""
-    echo "Options:"
-    echo "  deploy     Deploy the monitoring stack (default)"
-    echo "  upgrade    Upgrade existing deployment with backup"
-    echo "  stop       Stop all services"
-    echo "  restart    Restart all services"
-    echo "  status     Show service status"
-    echo "  logs       Show service logs"
-    echo "  backup     Create manual backup"
-    echo "  help       Show this help message"
-    echo ""
-}
-
-# Main execution
-case "${1:-deploy}" in
-    deploy)
-        print_header
-        check_prerequisites
-        setup_environment
+# Main script logic
+case "$1" in
+    "dev")
+        check_docker
+        check_env_vars "development"
         create_directories
-        generate_ssl_certificates
-        deploy_stack
-        show_access_info
+        generate_secret_key
+        deploy_development
         ;;
-    upgrade)
-        print_header
-        check_prerequisites
-        backup_existing_data upgrade
-        deploy_stack
-        show_access_info
+    "prod")
+        check_docker
+        check_env_vars "production"
+        create_directories
+        generate_secret_key
+        deploy_production
         ;;
-    stop)
-        print_info "Stopping monitoring stack..."
-        docker-compose -f "$COMPOSE_FILE" down
-        print_success "Services stopped"
+    "stop")
+        stop_stack "$2"
         ;;
-    restart)
-        print_info "Restarting monitoring stack..."
-        docker-compose -f "$COMPOSE_FILE" restart
-        print_success "Services restarted"
+    "logs")
+        show_logs "$2"
         ;;
-    status)
-        print_info "Service status:"
-        docker-compose -f "$COMPOSE_FILE" ps
+    "status")
+        show_status "$2"
         ;;
-    logs)
-        SERVICE=${2:-}
-        if [ -n "$SERVICE" ]; then
-            docker-compose -f "$COMPOSE_FILE" logs -f "$SERVICE"
-        else
-            docker-compose -f "$COMPOSE_FILE" logs -f
-        fi
+    "backup")
+        backup_data
         ;;
-    backup)
-        backup_existing_data upgrade
+    "restore")
+        restore_data "$2" "$3"
         ;;
-    help)
-        show_usage
+    "test-smtp")
+        test_smtp "$2"
+        ;;
+    "help"|"--help"|"-h"|"")
+        show_help
         ;;
     *)
-        print_error "Unknown option: $1"
-        show_usage
+        print_error "Unknown command: $1"
+        show_help
         exit 1
         ;;
 esac 

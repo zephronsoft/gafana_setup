@@ -1,29 +1,28 @@
 # ==============================================
 # Facebook/Meta Monitoring Stack Configuration
+# No SSL - Internal SMTP Setup
 # ==============================================
 
 # Admin Credentials
 ADMIN_USER=admin
-ADMIN_PASSWORD=
+ADMIN_PASSWORD=admin
 
 # PostgreSQL Database
 POSTGRES_USER=grafana
-POSTGRES_PASSWORD=
+POSTGRES_PASSWORD=admin
 
 # Grafana Security
 GRAFANA_SECRET_KEY=
 
 # SMTP Configuration for Alerting
-# Internal SMTP servers are included (MailHog for dev, Postfix for prod)
-MAIL_DOMAIN=facebook.com
-SMTP_USER=monitoring@facebook.com
+# Development: MailHog (included in stack)
+# Production: Postfix (internal SMTP server)
+MAIL_DOMAIN=localhost
+SMTP_USER=monitoring@localhost
 SMTP_PASSWORD=your-smtp-password
-SMTP_FROM=noreply-monitoring@facebook.com
-
-# SSL/TLS Configuration
-ACME_EMAIL=devops@facebook.com
-CF_API_EMAIL=
-CF_API_KEY=
+SMTP_FROM=noreply-monitoring@localhost
+SMTP_HOST=postfix:587
+SMTP_PORT=587
 
 # Slack Integration
 SLACK_API_URL=
@@ -52,15 +51,18 @@ PROMETHEUS_MAX_SAMPLES=50000000
 GRAFANA_MAX_CONCURRENT_QUERIES=10
 
 # Environment Settings
-ENVIRONMENT=production
+ENVIRONMENT=development
 COMPANY=facebook
 TEAM=platform-reliability
 DATACENTER=east-1
 
-# External URLs
-GRAFANA_DOMAIN=grafana.facebook.com
-PROMETHEUS_DOMAIN=prometheus.facebook.com
-ALERTMANAGER_DOMAIN=alertmanager.facebook.com
+# External URLs (No SSL)
+GRAFANA_DOMAIN=grafana.localhost
+PROMETHEUS_DOMAIN=prometheus.localhost
+ALERTMANAGER_DOMAIN=alertmanager.localhost
+LOKI_DOMAIN=loki.localhost
+JAEGER_DOMAIN=jaeger.localhost
+MAILHOG_DOMAIN=mailhog.localhost
 
 # Security
 ENABLE_RBAC=true

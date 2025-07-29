@@ -1,0 +1,105 @@
+# ==============================================
+# File-based Service Discovery for Exporters
+# Prometheus will automatically reload this file
+# ==============================================
+
+# Example 1: Simple exporter targets
+- targets:
+  - '192.168.1.100:9100'
+  - '192.168.1.101:9100'
+  - '192.168.1.102:9100'
+  labels:
+    job: 'node-exporter'
+    environment: 'production'
+    datacenter: 'east-1'
+
+# Example 2: Different types of exporters
+- targets:
+  - '192.168.1.100:9100'  # Node exporter
+  - '192.168.1.100:8080'  # cAdvisor
+  - '192.168.1.100:9187'  # PostgreSQL exporter
+  labels:
+    job: 'mixed-exporters'
+    instance: 'server-01'
+    environment: 'production'
+
+# Example 3: External exporters
+- targets:
+  - 'external-server-1.com:9100'
+  - 'external-server-2.com:9100'
+  labels:
+    job: 'external-exporters'
+    environment: 'external'
+    datacenter: 'cloud'
+
+# Example 4: Development environment
+- targets:
+  - 'dev-server-1.local:9100'
+  - 'dev-server-2.local:9100'
+  labels:
+    job: 'dev-exporters'
+    environment: 'development'
+    datacenter: 'dev-lab'
+
+# Example 5: Staging environment
+- targets:
+  - 'staging-server-1.local:9100'
+  - 'staging-server-2.local:9100'
+  labels:
+    job: 'staging-exporters'
+    environment: 'staging'
+    datacenter: 'staging-lab'
+
+# Example 6: Custom application exporters
+- targets:
+  - 'app-server-1:8080'
+  - 'app-server-2:8080'
+  - 'app-server-3:8080'
+  labels:
+    job: 'custom-app-exporters'
+    service: 'custom-application'
+    environment: 'production'
+    version: 'v1.2.3'
+
+# Example 7: Database exporters
+- targets:
+  - 'db-server-1:9187'  # PostgreSQL
+  - 'db-server-2:9187'  # PostgreSQL
+  - 'cache-server-1:9121'  # Redis
+  - 'cache-server-2:9121'  # Redis
+  labels:
+    job: 'database-exporters'
+    environment: 'production'
+    datacenter: 'east-1'
+
+# Example 8: Web server exporters
+- targets:
+  - 'web-server-1:9100'
+  - 'web-server-2:9100'
+  - 'web-server-3:9100'
+  labels:
+    job: 'web-server-exporters'
+    environment: 'production'
+    service: 'web-application'
+    load_balancer: 'nginx'
+
+# Example 9: Monitoring exporters
+- targets:
+  - 'monitoring-server-1:9100'
+  - 'monitoring-server-1:8080'  # cAdvisor
+  - 'monitoring-server-1:9091'  # Pushgateway
+  labels:
+    job: 'monitoring-exporters'
+    environment: 'production'
+    service: 'monitoring-stack'
+
+# Example 10: Kubernetes node exporters
+- targets:
+  - 'k8s-node-1:9100'
+  - 'k8s-node-2:9100'
+  - 'k8s-node-3:9100'
+  labels:
+    job: 'kubernetes-node-exporters'
+    environment: 'production'
+    platform: 'kubernetes'
+    cluster: 'production-cluster' 
