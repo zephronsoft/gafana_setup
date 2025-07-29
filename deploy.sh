@@ -53,6 +53,16 @@ check_docker() {
 check_env_vars() {
     local missing_vars=()
     
+    # Generate secret key if not set
+    if [ -z "$GRAFANA_SECRET_KEY" ]; then
+        print_warning "GRAFANA_SECRET_KEY not set, generating one..."
+        SECRET_KEY=$(openssl rand -hex 32)
+        echo "GRAFANA_SECRET_KEY=$SECRET_KEY" >> .env
+        print_success "Generated GRAFANA_SECRET_KEY"
+        # Reload environment variables
+        source .env
+    fi
+    
     # Required variables for both modes
     if [ -z "$ADMIN_PASSWORD" ]; then
         missing_vars+=("ADMIN_PASSWORD")
@@ -62,21 +72,35 @@ check_env_vars() {
         missing_vars+=("POSTGRES_PASSWORD")
     fi
     
-    if [ -z "$GRAFANA_SECRET_KEY" ]; then
-        missing_vars+=("GRAFANA_SECRET_KEY")
-    fi
-    
-    # Check SMTP variables for both modes
-    if [ -z "$SMTP_USER" ]; then
-        missing_vars+=("SMTP_USER")
-    fi
-    
-    if [ -z "$SMTP_PASSWORD" ]; then
-        missing_vars+=("SMTP_PASSWORD")
-    fi
-    
-    if [ -z "$SMTP_FROM" ]; then
-        missing_vars+=("SMTP_FROM")
+    # Check SMTP variables for both modes (make them optional for development)
+    if [ "$1" = "production" ]; then
+        if [ -z "$SMTP_USER" ]; then
+            missing_vars+=("SMTP_USER")
+        fi
+        
+        if [ -z "$SMTP_PASSWORD" ]; then
+            missing_vars+=("SMTP_PASSWORD")
+        fi
+        
+        if [ -z "$SMTP_FROM" ]; then
+            missing_vars+=("SMTP_FROM")
+        fi
+    else
+        # For development, set default SMTP values if not provided
+        if [ -z "$SMTP_USER" ]; then
+            print_warning "SMTP_USER not set, using default for development..."
+            echo "SMTP_USER=monitoring@localhost" >> .env
+        fi
+        
+        if [ -z "$SMTP_PASSWORD" ]; then
+            print_warning "SMTP_PASSWORD not set, using default for development..."
+            echo "SMTP_PASSWORD=dev-password" >> .env
+        fi
+        
+        if [ -z "$SMTP_FROM" ]; then
+            print_warning "SMTP_FROM not set, using default for development..."
+            echo "SMTP_FROM=noreply-monitoring@localhost" >> .env
+        fi
     fi
     
     if [ ${#missing_vars[@]} -ne 0 ]; then
@@ -102,15 +126,7 @@ create_directories() {
     print_success "Directories created"
 }
 
-# Function to generate Grafana secret key if not set
-generate_secret_key() {
-    if [ -z "$GRAFANA_SECRET_KEY" ]; then
-        print_warning "GRAFANA_SECRET_KEY not set, generating one..."
-        SECRET_KEY=$(openssl rand -hex 32)
-        echo "GRAFANA_SECRET_KEY=$SECRET_KEY" >> .env
-        print_success "Generated GRAFANA_SECRET_KEY"
-    fi
-}
+
 
 # Function to deploy development stack
 deploy_development() {
@@ -305,14 +321,12 @@ case "$1" in
         check_docker
         check_env_vars "development"
         create_directories
-        generate_secret_key
         deploy_development
         ;;
     "prod")
         check_docker
         check_env_vars "production"
         create_directories
-        generate_secret_key
         deploy_production
         ;;
     "stop")
