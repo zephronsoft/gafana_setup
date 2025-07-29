@@ -203,7 +203,7 @@ services:
       - GF_SMTP_HOST=mailhog:1025
       - GF_SMTP_USER=
       - GF_SMTP_PASSWORD=
-      - GF_SMTP_FROM_ADDRESS=${SMTP_FROM:-noreply-monitoring@localhost}
+      - GF_SMTP_FROM_ADDRESS=${SMTP_FROM:-noreply@monitoring.local}
       - GF_SMTP_SKIP_VERIFY=true
       - GF_SMTP_FROM_NAME=Monitoring System
       # Server Configuration (no SSL)
@@ -376,12 +376,12 @@ services:
     networks:
       - monitor-net
     environment:
-      - ALLOWED_SENDER_DOMAINS=${MAIL_DOMAIN:-localhost}
+      - ALLOWED_SENDER_DOMAINS=${MAIL_DOMAIN:-monitoring.local}
       - HOSTNAME=postfix
       - MESSAGE_SIZE_LIMIT=10485760
-      - MAILNAME=${MAIL_DOMAIN:-localhost}
+      - MAILNAME=${MAIL_DOMAIN:-monitoring.local}
       - POSTFIX_myhostname=postfix
-      - POSTFIX_mydomain=${MAIL_DOMAIN:-localhost}
+      - POSTFIX_mydomain=${MAIL_DOMAIN:-monitoring.local}
       - POSTFIX_mynetworks=127.0.0.0/8,172.20.0.0/16,10.0.0.0/8,192.168.0.0/16
     profiles:
       - production

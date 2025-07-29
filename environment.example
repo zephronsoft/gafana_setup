@@ -5,11 +5,11 @@
 
 # Admin Credentials
 ADMIN_USER=admin
-ADMIN_PASSWORD=admin
+ADMIN_PASSWORD=
 
 # PostgreSQL Database
 POSTGRES_USER=grafana
-POSTGRES_PASSWORD=admin
+POSTGRES_PASSWORD=
 
 # Grafana Security
 GRAFANA_SECRET_KEY=
@@ -17,10 +17,10 @@ GRAFANA_SECRET_KEY=
 # SMTP Configuration for Alerting
 # Development: MailHog (included in stack)
 # Production: Postfix (internal SMTP server)
-MAIL_DOMAIN=localhost
-SMTP_USER=monitoring@localhost
+MAIL_DOMAIN=monitoring.local
+SMTP_USER=monitoring@monitoring.local
 SMTP_PASSWORD=your-smtp-password
-SMTP_FROM=noreply-monitoring@localhost
+SMTP_FROM=noreply@monitoring.local
 SMTP_HOST=postfix:587
 SMTP_PORT=587
 

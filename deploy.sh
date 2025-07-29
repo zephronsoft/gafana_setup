@@ -89,7 +89,7 @@ check_env_vars() {
         # For development, set default SMTP values if not provided
         if [ -z "$SMTP_USER" ]; then
             print_warning "SMTP_USER not set, using default for development..."
-            echo "SMTP_USER=monitoring@localhost" >> .env
+            echo "SMTP_USER=monitoring@monitoring.local" >> .env
         fi
         
         if [ -z "$SMTP_PASSWORD" ]; then
@@ -99,7 +99,7 @@ check_env_vars() {
         
         if [ -z "$SMTP_FROM" ]; then
             print_warning "SMTP_FROM not set, using default for development..."
-            echo "SMTP_FROM=noreply-monitoring@localhost" >> .env
+            echo "SMTP_FROM=noreply@monitoring.local" >> .env
         fi
     fi
     

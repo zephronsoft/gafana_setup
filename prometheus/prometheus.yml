@@ -400,9 +400,4 @@ scrape_configs:
       action: replace
       target_label: kubernetes_pod_name
 
-# Storage configuration
-storage:
-  tsdb:
-    retention.time: 30d
-    retention.size: 50GB
-    wal-compression: true
+

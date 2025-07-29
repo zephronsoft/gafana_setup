@@ -203,7 +203,7 @@ services:
       - GF_SMTP_HOST=postfix:587
       - GF_SMTP_USER=${SMTP_USER}
       - GF_SMTP_PASSWORD=${SMTP_PASSWORD}
-      - GF_SMTP_FROM_ADDRESS=${SMTP_FROM}
+      - GF_SMTP_FROM_ADDRESS=${SMTP_FROM:-noreply@monitoring.local}
       - GF_SMTP_FROM_NAME=Monitoring System
       - GF_SMTP_SKIP_VERIFY=true
       - GF_SMTP_STARTTLS_POLICY=MandatoryStartTLS
@@ -357,12 +357,12 @@ services:
     networks:
       - monitor-net
     environment:
-      - ALLOWED_SENDER_DOMAINS=${MAIL_DOMAIN}
+      - ALLOWED_SENDER_DOMAINS=${MAIL_DOMAIN:-monitoring.local}
       - HOSTNAME=postfix
       - MESSAGE_SIZE_LIMIT=10485760
-      - MAILNAME=${MAIL_DOMAIN}
+      - MAILNAME=${MAIL_DOMAIN:-monitoring.local}
       - POSTFIX_myhostname=postfix
-      - POSTFIX_mydomain=${MAIL_DOMAIN}
+      - POSTFIX_mydomain=${MAIL_DOMAIN:-monitoring.local}
       - POSTFIX_mynetworks=127.0.0.0/8,172.20.0.0/16,10.0.0.0/8,192.168.0.0/16
     labels:
       org.label-schema.group: "monitoring"

@@ -5,7 +5,7 @@
 
 # Basic Settings
 myhostname = postfix
-mydomain = localhost
+mydomain = monitoring.local
 myorigin = $mydomain
 inet_interfaces = all
 inet_protocols = ipv4
