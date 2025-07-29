@@ -368,7 +368,7 @@ services:
 
   # Postfix for production SMTP
   postfix:
-    image: catatnight/postfix:latest
+    image: boky/postfix:latest
     container_name: postfix
     restart: unless-stopped
     ports:
@@ -376,11 +376,13 @@ services:
     networks:
       - monitor-net
     environment:
-      - maildomain=${MAIL_DOMAIN:-localhost}
-      - smtp_user=${SMTP_USER:-monitoring@localhost}:${SMTP_PASSWORD}
-    volumes:
-      - ./postfix/main.cf:/etc/postfix/main.cf
-      - ./postfix/master.cf:/etc/postfix/master.cf
+      - ALLOWED_SENDER_DOMAINS=${MAIL_DOMAIN:-localhost}
+      - HOSTNAME=postfix
+      - MESSAGE_SIZE_LIMIT=10485760
+      - MAILNAME=${MAIL_DOMAIN:-localhost}
+      - POSTFIX_myhostname=postfix
+      - POSTFIX_mydomain=${MAIL_DOMAIN:-localhost}
+      - POSTFIX_mynetworks=127.0.0.0/8,172.20.0.0/16,10.0.0.0/8,192.168.0.0/16
     profiles:
       - production
     labels:

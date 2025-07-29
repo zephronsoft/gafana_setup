@@ -1,57 +1,60 @@
 # ==============================================
-# Facebook/Meta Postfix Main Configuration
-# Production SMTP Server
+# Postfix Configuration for Internal SMTP
+# Simple containerized setup
 # ==============================================
 
-# Basic settings
-myhostname = mail.facebook.com
-mydomain = facebook.com
+# Basic Settings
+myhostname = postfix
+mydomain = localhost
 myorigin = $mydomain
 inet_interfaces = all
 inet_protocols = ipv4
-mydestination = localhost
 
-# Network and mail handling
-relayhost = 
-mynetworks = 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
-home_mailbox = Maildir/
+# Network Settings
+mydestination = $myhostname, localhost.$mydomain, localhost, $mydomain
+mynetworks = 127.0.0.0/8, 172.20.0.0/16, 10.0.0.0/8, 192.168.0.0/16
+mynetworks_style = subnet
 
-# Security and authentication
-smtpd_banner = $myhostname ESMTP Facebook Monitoring
+# SMTP Settings
+smtpd_banner = $myhostname ESMTP $mail_name
+biff = no
+append_dot_mydomain = no
+readme_directory = no
+
+# Security
 disable_vrfy_command = yes
-smtpd_helo_required = yes
-smtpd_helo_restrictions = permit_mynetworks, reject_invalid_helo_hostname, permit
+strict_rfc821_envelopes = yes
 
-# SASL authentication
+# Message Size Limits
+message_size_limit = 10485760
+mailbox_size_limit = 0
+
+# Relay Settings
+relayhost =
+relay_domains = $mydomain
+
+# Local Delivery
+local_recipient_maps = unix:passwd.byname $alias_maps
+local_transport = error:local delivery disabled
+
+# Queue Settings
+queue_directory = /var/spool/postfix
+command_directory = /usr/sbin
+daemon_directory = /usr/lib/postfix
+data_directory = /var/lib/postfix
+mail_owner = postfix
+setgid_group = postdrop
+
+# Alias Maps
+alias_maps = hash:/etc/aliases
+alias_database = hash:/etc/aliases
+
+# Simple authentication (optional)
 smtpd_sasl_auth_enable = yes
-smtpd_sasl_type = dovecot
-smtpd_sasl_path = private/auth
 smtpd_sasl_security_options = noanonymous
-smtpd_sasl_tls_security_options = noanonymous
 smtpd_sasl_local_domain = $myhostname
-broken_sasl_auth_clients = yes
-
-# TLS/SSL settings
-smtpd_use_tls = yes
-smtpd_tls_security_level = may
-smtpd_tls_auth_only = no
-smtpd_tls_cert_file = /etc/ssl/certs/postfix.crt
-smtpd_tls_key_file = /etc/ssl/private/postfix.key
-smtpd_tls_session_cache_database = btree:${data_directory}/smtpd_scache
-smtp_tls_session_cache_database = btree:${data_directory}/smtp_scache
 
 # Client restrictions
 smtpd_client_restrictions = permit_mynetworks, permit_sasl_authenticated, reject
 smtpd_sender_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unknown_sender_domain, permit
-smtpd_recipient_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination, permit
-
-# Message size limits
-message_size_limit = 25600000
-mailbox_size_limit = 1024000000
-
-# Logging
-maillog_file = /dev/stdout
-
-# Virtual domains (if needed)
-# virtual_alias_domains = 
-# virtual_alias_maps = hash:/etc/postfix/virtual 
+smtpd_recipient_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination, permit 
