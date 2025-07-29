@@ -35,7 +35,7 @@ modules:
         User-Agent: "Facebook-Internal-Monitor/1.0"
         Accept: "text/html,application/json"
         X-FB-Debug: "1"
-      body_size_limit: 1048576  # 1MB
+      body_size_limit: 1048576B  # 1MB
       fail_if_body_matches_regexp:
         - "(?i)error"
         - "(?i)exception"
@@ -215,6 +215,6 @@ modules:
       valid_status_codes: [200]
       headers:
         User-Agent: "Facebook-LB-Monitor/1.0"
-      body_size_limit: 1024
+      body_size_limit: 1024B
       fail_if_body_not_matches_regexp:
         - "(?i)(healthy|ok|ready)" 

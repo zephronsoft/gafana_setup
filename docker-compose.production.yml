@@ -84,7 +84,7 @@ services:
       environment: "production"
       team: "platform-reliability"
 
-  # AlertManager with clustering
+  # AlertManager (single instance)
   alertmanager:
     image: prom/alertmanager:v0.26.0
     container_name: alertmanager
@@ -98,8 +98,6 @@ services:
       - '--web.external-url=http://alertmanager.${GRAFANA_DOMAIN}'
       - '--web.route-prefix=/'
       - '--log.level=warn'
-      - '--cluster.listen-address=0.0.0.0:9094'
-      - '--cluster.advertise-address=alertmanager:9094'
     restart: unless-stopped
     ports:
       - "9093:9093"
